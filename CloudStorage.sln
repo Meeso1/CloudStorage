@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CloudStorage", "CloudStorage\CloudStorage.csproj", "{2DEE6800-4F45-4219-BED3-D6133B56FFF8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2DEE6800-4F45-4219-BED3-D6133B56FFF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DEE6800-4F45-4219-BED3-D6133B56FFF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DEE6800-4F45-4219-BED3-D6133B56FFF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DEE6800-4F45-4219-BED3-D6133B56FFF8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
