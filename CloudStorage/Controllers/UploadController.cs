@@ -19,6 +19,7 @@ public sealed class UploadController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Guid>> UploadFile(UploadFileRequest request)
     {
-        return (await _command.CreateStoredFile(request.FileName, request.Content)).Id;
+        var created = await _command.CreateStoredFile(request.FileName, request.Content);
+        return created is null ? NotFound() : created.Id;
     }
 }

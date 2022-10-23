@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using CloudStorage.Configuration;
 using CloudStorage.Database;
+using CloudStorage.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ILogger = Serilog.ILogger;
@@ -20,8 +21,19 @@ public sealed class FileCommand
         _config = config;
     }
 
-    public async Task<StoredFile> CreateStoredFile(string name, string content)
+    public async Task<StoredFile?> CreateStoredFile(string name, string content, User? owner = null)
     {
+        UserEntity? ownerEntity = null;
+        if (owner is not null)
+        {
+            ownerEntity = await _context.Users.FirstOrDefaultAsync(u => u.Username == owner.Username);
+            if (ownerEntity is null)
+            {
+                _logger.Warning("User with  username {Username} does not exist. File was not created", owner.Username);
+                return null;
+            }
+        }
+
         var guid = Guid.NewGuid();
         var fullPath = Path.Combine(_config.CurrentValue.DirPath, guid.ToString().Replace("-", "") + name);
 
@@ -40,7 +52,8 @@ public sealed class FileCommand
         {
             Id = guid,
             FileName = name,
-            Path = fullPath
+            Path = fullPath,
+            Owner = ownerEntity
         };
         _context.Files.Add(entity);
         await _context.SaveChangesAsync();
@@ -50,11 +63,17 @@ public sealed class FileCommand
 
     public async Task<FileWithContent?> GetFileById(Guid id)
     {
-        var fileData = await _context.Files.FirstOrDefaultAsync(e => e.Id == id);
+        var fileData = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(e => e.Id == id);
         if (fileData is null) return null;
 
         var bytes = await File.ReadAllBytesAsync(fileData.Path);
         return new FileWithContent(StoredFile.FromEntity(fileData), bytes);
+    }
+
+    public IEnumerable<StoredFile> GetFilesForUser(User user)
+    {
+        return _context.Files.Include(f => f.Owner).Where(f => f.Owner == null || f.Owner.Username == user.Username)
+            .Select(f => StoredFile.FromEntity(f));
     }
 }
 

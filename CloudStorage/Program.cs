@@ -11,6 +11,7 @@ builder.Host.UseSerilog((_, lc) => lc.WriteTo.Console());
 var services = builder.Services;
 
 services.AddScoped<FileCommand>();
+services.AddScoped<UserCommand>();
 
 services.Configure<StorageConfiguration>(builder.Configuration.GetSection(StorageConfiguration.SectionName));
 services.AddDbContext<FilesDbContext>(options =>

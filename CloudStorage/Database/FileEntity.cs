@@ -9,4 +9,6 @@ public sealed class FileEntity
     [Required] public string FileName { get; init; } = null!;
 
     [Required] public string Path { get; init; } = null!;
+
+    public UserEntity? Owner { get; init; }
 }

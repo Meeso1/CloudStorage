@@ -15,4 +15,6 @@ public sealed class FilesDbContext : DbContext
     }
 
     public DbSet<FileEntity> Files => Set<FileEntity>();
+
+    public DbSet<UserEntity> Users => Set<UserEntity>();
 }
