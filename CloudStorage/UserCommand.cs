@@ -16,11 +16,11 @@ public sealed class UserCommand
 
     public async Task<User> CreateUser(string username, string password)
     {
-        var newUser = new User(username);
+        var newUser = new User(Guid.NewGuid(), username);
         var hashedPassword = new PasswordHasher<User>().HashPassword(newUser, password);
         _context.Users.Add(new UserEntity
         {
-            Id = Guid.NewGuid(),
+            Id = newUser.Id,
             Username = username,
             PasswordHash = hashedPassword
         });
@@ -34,7 +34,7 @@ public sealed class UserCommand
         var userEntity = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
         if (userEntity is null) return null;
 
-        var user = new User(userEntity.Username);
+        var user = User.FromEntity(userEntity);
         var hasher = new PasswordHasher<User>();
         return hasher.VerifyHashedPassword(user, userEntity.PasswordHash, password) != PasswordVerificationResult.Failed
             ? user
