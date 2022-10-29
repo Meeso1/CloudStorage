@@ -36,7 +36,7 @@ public sealed class FileCommand
             Id = Guid.NewGuid(),
             FileName = name,
             Path = null,
-            OwnerId = ownerId, // TODO: This doesn't link? Investigate
+            OwnerId = ownerId,
             CreationTime = now,
             LastModificationTime = now,
             Size = 0,
@@ -46,7 +46,7 @@ public sealed class FileCommand
         _context.Files.Add(entity);
         await _context.SaveChangesAsync();
 
-        return StoredFile.FromEntity(entity);
+        return StoredFile.FromEntity(_context.Files.Include(f => f.Owner).First(f => f.Id == entity.Id));
     }
 
     public async Task<StoredFile?> UploadFileContent(Guid id, IFormFile file)

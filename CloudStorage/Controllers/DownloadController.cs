@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using ILogger = Serilog.ILogger;
 
 namespace CloudStorage.Controllers;
@@ -17,9 +18,11 @@ public sealed class DownloadController : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     [Route("{id:guid}")]
     public async Task<FileResult?> DownloadFile(Guid id)
     {
+        // TODO: Check user ID and compare with file owner ID
         var fileDetails = await _command.GetContentById(id);
         if (fileDetails is not null) return File(fileDetails.Content, "text/plain", fileDetails.File.FileName);
 
