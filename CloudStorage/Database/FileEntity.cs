@@ -8,7 +8,19 @@ public sealed class FileEntity
 
     [Required] public string FileName { get; init; } = null!;
 
-    [Required] public string Path { get; init; } = null!;
+    public string? Path { get; set; }
 
     public UserEntity? Owner { get; init; }
+
+    public Guid? OwnerId { get; init; }
+
+    [Required] public DateTimeOffset CreationTime { get; init; }
+
+    [Required] public DateTimeOffset LastModificationTime { get; set; }
+
+    [Required] public bool Replaceable { get; init; }
+
+    [Required] public long Size { get; set; }
+
+    public long? MaxSize { get; init; }
 }

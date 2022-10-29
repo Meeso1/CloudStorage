@@ -20,7 +20,7 @@ public sealed class DownloadController : ControllerBase
     [Route("{id:guid}")]
     public async Task<FileResult?> DownloadFile(Guid id)
     {
-        var fileDetails = await _command.GetFileById(id);
+        var fileDetails = await _command.GetContentById(id);
         if (fileDetails is not null) return File(fileDetails.Content, "text/plain", fileDetails.File.FileName);
 
         Response.StatusCode = StatusCodes.Status404NotFound;

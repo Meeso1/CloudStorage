@@ -1,5 +1,4 @@
-﻿using System.Text;
-using CloudStorage.Configuration;
+﻿using CloudStorage.Configuration;
 using CloudStorage.Database;
 using CloudStorage.Models;
 using Microsoft.EntityFrameworkCore;
@@ -21,39 +20,28 @@ public sealed class FileCommand
         _config = config;
     }
 
-    public async Task<StoredFile?> CreateStoredFile(string name, string content, User? owner = null)
+    public async Task<StoredFile?> CreateStoredFile(string name, long? maxSize, bool replaceable, Guid? ownerId)
     {
-        UserEntity? ownerEntity = null;
-        if (owner is not null)
+        if (ownerId is not null && !_context.Users.Any(u => u.Id == ownerId))
         {
-            ownerEntity = await _context.Users.FirstOrDefaultAsync(u => u.Username == owner.Username);
-            if (ownerEntity is null)
-            {
-                _logger.Warning("User with  username {Username} does not exist. File was not created", owner.Username);
-                return null;
-            }
+            _logger.Warning("User with id {Username} does not exist. File was not created", ownerId);
+            return null;
         }
 
-        var guid = Guid.NewGuid();
-        var fullPath = Path.Combine(_config.CurrentValue.DirPath, guid.ToString().Replace("-", "") + name);
+        _logger.Debug("Creating stored file {FileName}", name);
 
-        if (!Directory.Exists(_config.CurrentValue.DirPath))
-        {
-            Directory.CreateDirectory(_config.CurrentValue.DirPath);
-            _logger.Information("Created storage directory: {Path}", _config.CurrentValue.DirPath);
-        }
-
-        _logger.Debug("Creating stored file {FileName} with id {Id} (path: {Path})", name, guid, fullPath);
-
-        await using var stream = new FileStream(fullPath, FileMode.Create);
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(content));
-
+        var now = DateTimeOffset.Now;
         var entity = new FileEntity
         {
-            Id = guid,
+            Id = Guid.NewGuid(),
             FileName = name,
-            Path = fullPath,
-            Owner = ownerEntity
+            Path = null,
+            OwnerId = ownerId, // TODO: This doesn't link? Investigate
+            CreationTime = now,
+            LastModificationTime = now,
+            Size = 0,
+            MaxSize = maxSize,
+            Replaceable = replaceable
         };
         _context.Files.Add(entity);
         await _context.SaveChangesAsync();
@@ -61,13 +49,64 @@ public sealed class FileCommand
         return StoredFile.FromEntity(entity);
     }
 
-    public async Task<FileWithContent?> GetFileById(Guid id)
+    public async Task<StoredFile?> UploadFileContent(Guid id, IFormFile file)
+    {
+        var entity = await _context.Files.Include(f => f.Owner).SingleOrDefaultAsync(f => f.Id == id);
+        if (entity is null)
+        {
+            _logger.Warning("File entity with id {Id} does not exist", id);
+            return null;
+        }
+
+        if (!entity.Replaceable && entity.Size > 0)
+        {
+            _logger.Warning("File {Id} already exists and cannot be replaced", id);
+            return null;
+        }
+
+        if (entity.MaxSize is not null && entity.MaxSize.Value < file.Length)
+        {
+            _logger.Warning(
+                "Cannot write {BytesCount} bytes to File {Id}, because it has a size limit of {Limit} bytes",
+                file.Length, id, entity.MaxSize.Value);
+            return null;
+        }
+
+        if (!Directory.Exists(_config.CurrentValue.DirPath))
+        {
+            Directory.CreateDirectory(_config.CurrentValue.DirPath);
+            _logger.Information("Created storage directory: {Path}", _config.CurrentValue.DirPath);
+        }
+
+        var storageFileName = Guid.NewGuid().ToString().Replace("-", "");
+        var path = Path.Combine(_config.CurrentValue.DirPath, storageFileName);
+
+        await using var stream = new FileStream(path, FileMode.Create);
+        await file.CopyToAsync(stream);
+
+        if (entity.Path is not null) File.Delete(entity.Path);
+
+        entity.Path = path;
+        entity.Size = file.Length;
+        entity.LastModificationTime = DateTimeOffset.Now;
+        await _context.SaveChangesAsync();
+
+        return StoredFile.FromEntity(entity);
+    }
+
+    public async Task<FileWithContent?> GetContentById(Guid id)
     {
         var fileData = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(e => e.Id == id);
         if (fileData is null) return null;
 
-        var bytes = await File.ReadAllBytesAsync(fileData.Path);
+        var bytes = fileData.Path is not null ? await File.ReadAllBytesAsync(fileData.Path) : Array.Empty<byte>();
         return new FileWithContent(StoredFile.FromEntity(fileData), bytes);
+    }
+
+    public async Task<StoredFile?> GetFileDetailsById(Guid id)
+    {
+        var fileData = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(e => e.Id == id);
+        return fileData is null ? null : StoredFile.FromEntity(fileData);
     }
 
     public IEnumerable<StoredFile> GetFilesForUser(User user)
