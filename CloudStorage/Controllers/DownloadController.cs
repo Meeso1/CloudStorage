@@ -20,13 +20,19 @@ public sealed class DownloadController : ControllerBase
     [HttpGet]
     [AllowAnonymous]
     [Route("{id:guid}")]
-    public async Task<FileResult?> DownloadFile(Guid id)
+    public async Task<ActionResult<FileResult>> DownloadFile(Guid id)
     {
-        // TODO: Check user ID and compare with file owner ID
-        var fileDetails = await _command.GetContentById(id);
-        if (fileDetails is not null) return File(fileDetails.Content, "text/plain", fileDetails.File.FileName);
+        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
+        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
 
-        Response.StatusCode = StatusCodes.Status404NotFound;
-        return null;
+        var details = await _command.GetFileDetailsById(id);
+        if (details is null) return NotFound();
+
+        if (details.Owner is not null && details.Owner.Id != userId) return Unauthorized();
+
+        var content = await _command.GetContentById(id);
+        if (content is null) return StatusCode(StatusCodes.Status500InternalServerError);
+
+        return File(content, "text/plain", details.FileName);
     }
 }

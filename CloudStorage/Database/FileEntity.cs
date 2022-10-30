@@ -6,7 +6,7 @@ public sealed class FileEntity
 {
     [Required] public Guid Id { get; init; }
 
-    [Required] public string FileName { get; init; } = null!;
+    [Required] public string FileName { get; set; } = null!;
 
     public string? Path { get; set; }
 
@@ -18,9 +18,9 @@ public sealed class FileEntity
 
     [Required] public DateTimeOffset LastModificationTime { get; set; }
 
-    [Required] public bool Replaceable { get; init; }
+    [Required] public bool Replaceable { get; set; }
 
     [Required] public long Size { get; set; }
 
-    public long? MaxSize { get; init; }
+    public long? MaxSize { get; set; }
 }

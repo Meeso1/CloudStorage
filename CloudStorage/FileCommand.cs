@@ -94,13 +94,13 @@ public sealed class FileCommand
         return StoredFile.FromEntity(entity);
     }
 
-    public async Task<FileWithContent?> GetContentById(Guid id)
+    public async Task<byte[]?> GetContentById(Guid id)
     {
-        var fileData = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(e => e.Id == id);
+        var fileData = await _context.Files.FirstOrDefaultAsync(e => e.Id == id);
         if (fileData is null) return null;
 
         var bytes = fileData.Path is not null ? await File.ReadAllBytesAsync(fileData.Path) : Array.Empty<byte>();
-        return new FileWithContent(StoredFile.FromEntity(fileData), bytes);
+        return bytes;
     }
 
     public async Task<StoredFile?> GetFileDetailsById(Guid id)
@@ -109,11 +109,35 @@ public sealed class FileCommand
         return fileData is null ? null : StoredFile.FromEntity(fileData);
     }
 
-    public IEnumerable<StoredFile> GetFilesForUser(User user)
+    public async Task<IReadOnlyList<StoredFile>> GetFileDetailsForUser(Guid? userId)
     {
-        return _context.Files.Include(f => f.Owner).Where(f => f.Owner == null || f.Owner.Username == user.Username)
-            .Select(f => StoredFile.FromEntity(f));
+        return await _context.Files.Include(f => f.Owner).Where(f => f.OwnerId == userId)
+            .Select(f => StoredFile.FromEntity(f)).ToListAsync();
+    }
+
+    public async Task DeleteFile(Guid id)
+    {
+        var entity = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(f => f.Id == id);
+        if (entity is null) return;
+
+        if (entity.Path is not null) File.Delete(entity.Path);
+
+        _context.Files.Remove(entity);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<StoredFile?> UpdateFile(Guid id, string name, long? maxSize, bool replaceable)
+    {
+        var entity = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(f => f.Id == id);
+        if (entity is null) return null;
+
+        if (entity.MaxSize is not null && entity.MaxSize < entity.Size) return null;
+
+        entity.FileName = name;
+        entity.MaxSize = maxSize;
+        entity.Replaceable = replaceable;
+        await _context.SaveChangesAsync();
+
+        return StoredFile.FromEntity(entity);
     }
 }
-
-public sealed record FileWithContent(StoredFile File, byte[] Content);
