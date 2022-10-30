@@ -26,7 +26,7 @@ public sealed class TokenController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<AuthenticationResponse>> GetTokenAsync(AuthenticationRequest request)
     {
-        var user = await _command.Authenticate(request.Username, request.Password);
+        var user = await _command.AuthenticateAsync(request.Username, request.Password);
         if (user is null) return BadRequest();
 
         var claims = new[]

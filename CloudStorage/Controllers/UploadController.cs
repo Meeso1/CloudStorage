@@ -22,7 +22,8 @@ public sealed class UploadController : ControllerBase
         var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
         var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
 
-        var created = await _command.CreateStoredFile(request.FileName, request.MaxSize, request.Replaceable, userId);
+        var created =
+            await _command.CreateStoredFileAsync(request.FileName, request.MaxSize, request.Replaceable, userId);
         return created is null ? NotFound() : created.ToResponse();
     }
 
@@ -33,13 +34,13 @@ public sealed class UploadController : ControllerBase
     {
         var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
         var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
-        var fileDetails = await _command.GetFileDetailsById(fileId);
+        var fileDetails = await _command.GetDetailsByIdAsync(fileId);
 
         if (fileDetails is null) return NotFound();
 
         if (fileDetails.Owner is not null && fileDetails.Owner.Id != userId) return Unauthorized();
 
-        var result = await _command.UploadFileContent(fileId, file);
+        var result = await _command.StoreContentAsync(fileId, file);
 
         return result is null ? BadRequest() : result.ToResponse();
     }

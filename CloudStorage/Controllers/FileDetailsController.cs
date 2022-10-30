@@ -22,8 +22,8 @@ public class FileDetailsController : ControllerBase
         var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
         var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
 
-        IEnumerable<StoredFile> result = await _command.GetFileDetailsForUser(null);
-        if (userId is not null) result = result.Concat(await _command.GetFileDetailsForUser(userId));
+        IEnumerable<StoredFile> result = await _command.GetDetailsForUserAsync(null);
+        if (userId is not null) result = result.Concat(await _command.GetDetailsForUserAsync(userId));
 
         return result.Select(f => f.ToResponse()).ToList();
     }
@@ -36,7 +36,7 @@ public class FileDetailsController : ControllerBase
         var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
         var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
 
-        var result = await _command.GetFileDetailsById(id);
+        var result = await _command.GetDetailsByIdAsync(id);
         if (result is null) return NotFound();
 
         if (result.Owner is not null && result.Owner.Id != userId) return Unauthorized();
@@ -51,12 +51,12 @@ public class FileDetailsController : ControllerBase
         var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
         var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
 
-        var result = await _command.GetFileDetailsById(id);
+        var result = await _command.GetDetailsByIdAsync(id);
         if (result is null) return Ok();
 
         if (result.Owner is not null && result.Owner.Id != userId) return Unauthorized();
 
-        await _command.DeleteFile(id);
+        await _command.DeleteFileAsync(id);
         return Ok();
     }
 
@@ -67,14 +67,14 @@ public class FileDetailsController : ControllerBase
         var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
         var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
 
-        var details = await _command.GetFileDetailsById(id);
+        var details = await _command.GetDetailsByIdAsync(id);
         if (details is null) return NotFound();
 
         if (details.Owner is not null && details.Owner.Id != userId) return Unauthorized();
 
         if (request.MaxSize is not null && request.MaxSize < details.Size) return BadRequest();
 
-        var result = await _command.UpdateFile(id, request.FileName, request.MaxSize, request.Replaceable);
+        var result = await _command.UpdateDetailsAsync(id, request.FileName, request.MaxSize, request.Replaceable);
         if (result is null) return StatusCode(StatusCodes.Status500InternalServerError);
 
         return result.ToResponse();

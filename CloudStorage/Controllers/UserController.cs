@@ -19,7 +19,7 @@ public class UserController : ControllerBase
     [AllowAnonymous]
     public async Task<UserResponse> CreateUser(UserCreationRequest request)
     {
-        var user = await _command.CreateUser(request.Username, request.Password);
+        var user = await _command.CreateUserAsync(request.Username, request.Password);
         return user.ToResponse();
     }
 }

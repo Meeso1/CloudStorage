@@ -20,7 +20,7 @@ public sealed class FileCommand
         _config = config;
     }
 
-    public async Task<StoredFile?> CreateStoredFile(string name, long? maxSize, bool replaceable, Guid? ownerId)
+    public async Task<StoredFile?> CreateStoredFileAsync(string name, long? maxSize, bool replaceable, Guid? ownerId)
     {
         if (ownerId is not null && !_context.Users.Any(u => u.Id == ownerId))
         {
@@ -49,7 +49,7 @@ public sealed class FileCommand
         return StoredFile.FromEntity(_context.Files.Include(f => f.Owner).First(f => f.Id == entity.Id));
     }
 
-    public async Task<StoredFile?> UploadFileContent(Guid id, IFormFile file)
+    public async Task<StoredFile?> StoreContentAsync(Guid id, IFormFile file)
     {
         var entity = await _context.Files.Include(f => f.Owner).SingleOrDefaultAsync(f => f.Id == id);
         if (entity is null)
@@ -84,7 +84,11 @@ public sealed class FileCommand
         await using var stream = new FileStream(path, FileMode.Create);
         await file.CopyToAsync(stream);
 
-        if (entity.Path is not null) File.Delete(entity.Path);
+        if (entity.Path is not null)
+        {
+            _logger.Debug("Deleting previous content file at {Path}", entity.Path);
+            File.Delete(entity.Path);
+        }
 
         entity.Path = path;
         entity.Size = file.Length;
@@ -94,48 +98,77 @@ public sealed class FileCommand
         return StoredFile.FromEntity(entity);
     }
 
-    public async Task<byte[]?> GetContentById(Guid id)
+    public async Task<byte[]?> GetContentByIdAsync(Guid id)
     {
         var fileData = await _context.Files.FirstOrDefaultAsync(e => e.Id == id);
-        if (fileData is null) return null;
+        if (fileData is null)
+        {
+            _logger.Warning("File {Id} doesn't exist", id);
+            return null;
+        }
 
         var bytes = fileData.Path is not null ? await File.ReadAllBytesAsync(fileData.Path) : Array.Empty<byte>();
         return bytes;
     }
 
-    public async Task<StoredFile?> GetFileDetailsById(Guid id)
+    public async Task<StoredFile?> GetDetailsByIdAsync(Guid id)
     {
         var fileData = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(e => e.Id == id);
-        return fileData is null ? null : StoredFile.FromEntity(fileData);
+        if (fileData is null)
+        {
+            _logger.Warning("File {Id} doesn't exist", id);
+            return null;
+        }
+
+        return StoredFile.FromEntity(fileData);
     }
 
-    public async Task<IReadOnlyList<StoredFile>> GetFileDetailsForUser(Guid? userId)
+    public async Task<IReadOnlyList<StoredFile>> GetDetailsForUserAsync(Guid? userId)
     {
         return await _context.Files.Include(f => f.Owner).Where(f => f.OwnerId == userId)
             .Select(f => StoredFile.FromEntity(f)).ToListAsync();
     }
 
-    public async Task DeleteFile(Guid id)
+    public async Task DeleteFileAsync(Guid id)
     {
         var entity = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(f => f.Id == id);
-        if (entity is null) return;
+        if (entity is null)
+        {
+            _logger.Warning("File {Id} doesn't exist", id);
+            return;
+        }
 
-        if (entity.Path is not null) File.Delete(entity.Path);
+        if (entity.Path is not null)
+        {
+            _logger.Debug("Deleting content file {Path} for stored file {Id} ({Name})", entity.Path, id,
+                entity.FileName);
+            File.Delete(entity.Path);
+        }
 
         _context.Files.Remove(entity);
         await _context.SaveChangesAsync();
     }
 
-    public async Task<StoredFile?> UpdateFile(Guid id, string name, long? maxSize, bool replaceable)
+    public async Task<StoredFile?> UpdateDetailsAsync(Guid id, string name, long? maxSize, bool replaceable)
     {
         var entity = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(f => f.Id == id);
-        if (entity is null) return null;
+        if (entity is null)
+        {
+            _logger.Warning("File {Id} doesn't exist", id);
+            return null;
+        }
 
-        if (entity.MaxSize is not null && entity.MaxSize < entity.Size) return null;
+        if (entity.MaxSize is not null && entity.MaxSize < entity.Size)
+        {
+            _logger.Warning("Size of file {Id} ({Name}) is bigger than desired max size ({Actual} > {Desired})", id,
+                entity.FileName, entity.Size, maxSize);
+            return null;
+        }
 
         entity.FileName = name;
         entity.MaxSize = maxSize;
         entity.Replaceable = replaceable;
+        entity.LastModificationTime = DateTimeOffset.Now;
         await _context.SaveChangesAsync();
 
         return StoredFile.FromEntity(entity);
