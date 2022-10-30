@@ -19,8 +19,7 @@ public class FileDetailsController : ControllerBase
     [AllowAnonymous]
     public async Task<IEnumerable<StoredFileResponse>> GetAll()
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
+        var userId = Utility.GetUserId(User.Claims);
 
         IEnumerable<StoredFile> result = await _command.GetDetailsForUserAsync(null);
         if (userId is not null) result = result.Concat(await _command.GetDetailsForUserAsync(userId));
@@ -33,13 +32,10 @@ public class FileDetailsController : ControllerBase
     [Route("{id:guid}")]
     public async Task<ActionResult<StoredFileResponse>> Get(Guid id)
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
-
+        var userId = Utility.GetUserId(User.Claims);
         var result = await _command.GetDetailsByIdAsync(id);
         if (result is null) return NotFound();
-
-        if (result.Owner is not null && result.Owner.Id != userId) return Unauthorized();
+        if (!result.IsAllowedForUser(userId)) return Unauthorized();
 
         return result.ToResponse();
     }
@@ -48,13 +44,10 @@ public class FileDetailsController : ControllerBase
     [Route("{id:guid}")]
     public async Task<ActionResult> Delete(Guid id)
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
-
-        var result = await _command.GetDetailsByIdAsync(id);
-        if (result is null) return Ok();
-
-        if (result.Owner is not null && result.Owner.Id != userId) return Unauthorized();
+        var userId = Utility.GetUserId(User.Claims);
+        var details = await _command.GetDetailsByIdAsync(id);
+        if (details is null) return NotFound();
+        if (!details.IsAllowedForUser(userId)) return Unauthorized();
 
         await _command.DeleteFileAsync(id);
         return Ok();
@@ -64,19 +57,16 @@ public class FileDetailsController : ControllerBase
     [Route("{id:guid}")]
     public async Task<ActionResult<StoredFileResponse>> Update(Guid id, UpdateFileRequest request)
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
-
+        var userId = Utility.GetUserId(User.Claims);
         var details = await _command.GetDetailsByIdAsync(id);
         if (details is null) return NotFound();
-
-        if (details.Owner is not null && details.Owner.Id != userId) return Unauthorized();
+        if (!details.IsAllowedForUser(userId)) return Unauthorized();
 
         if (request.MaxSize is not null && request.MaxSize < details.Size) return BadRequest();
 
-        var result = await _command.UpdateDetailsAsync(id, request.FileName, request.MaxSize, request.Replaceable);
-        if (result is null) return StatusCode(StatusCodes.Status500InternalServerError);
+        var newDetails = await _command.UpdateDetailsAsync(id, request.FileName, request.MaxSize, request.Replaceable);
+        if (newDetails is null) return StatusCode(StatusCodes.Status500InternalServerError);
 
-        return result.ToResponse();
+        return newDetails.ToResponse();
     }
 }

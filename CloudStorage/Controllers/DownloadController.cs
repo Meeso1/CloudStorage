@@ -19,13 +19,10 @@ public sealed class DownloadController : ControllerBase
     [Route("{id:guid}")]
     public async Task<ActionResult<FileResult>> DownloadFile(Guid id)
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
-
+        var userId = Utility.GetUserId(User.Claims);
         var details = await _command.GetDetailsByIdAsync(id);
         if (details is null) return NotFound();
-
-        if (details.Owner is not null && details.Owner.Id != userId) return Unauthorized();
+        if (!details.IsAllowedForUser(userId)) return Unauthorized();
 
         var content = await _command.GetContentByIdAsync(id);
         if (content is null) return StatusCode(StatusCodes.Status500InternalServerError);

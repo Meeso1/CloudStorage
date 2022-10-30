@@ -19,8 +19,7 @@ public sealed class UploadController : ControllerBase
     [Route("create")]
     public async Task<ActionResult<StoredFileResponse>> CreateFile(CreateFileRequest request)
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
+        var userId = Utility.GetUserId(User.Claims);
 
         var created =
             await _command.CreateStoredFileAsync(request.FileName, request.MaxSize, request.Replaceable, userId);
@@ -32,16 +31,13 @@ public sealed class UploadController : ControllerBase
     [Route("upload/{fileId:guid}")]
     public async Task<ActionResult<StoredFileResponse>> UploadFile(Guid fileId, IFormFile file)
     {
-        var claim = User.Claims.FirstOrDefault(c => c.Type == "UserId")?.Value;
-        var userId = claim is not null ? Guid.Parse(claim) : (Guid?)null;
+        var userId = Utility.GetUserId(User.Claims);
         var fileDetails = await _command.GetDetailsByIdAsync(fileId);
-
         if (fileDetails is null) return NotFound();
+        if (!fileDetails.IsAllowedForUser(userId)) return Unauthorized();
 
-        if (fileDetails.Owner is not null && fileDetails.Owner.Id != userId) return Unauthorized();
+        var newDetails = await _command.StoreContentAsync(fileId, file);
 
-        var result = await _command.StoreContentAsync(fileId, file);
-
-        return result is null ? BadRequest() : result.ToResponse();
+        return newDetails is null ? BadRequest() : newDetails.ToResponse();
     }
 }
