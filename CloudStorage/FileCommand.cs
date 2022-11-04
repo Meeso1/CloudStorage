@@ -149,20 +149,21 @@ public sealed class FileCommand
         await _context.SaveChangesAsync();
     }
 
-    public async Task<StoredFile?> UpdateDetailsAsync(Guid id, string name, long? maxSize, bool replaceable)
+    public async Task<Result<StoredFile>> UpdateDetailsAsync(Guid id, string name, long? maxSize, bool replaceable)
     {
         var entity = await _context.Files.Include(f => f.Owner).FirstOrDefaultAsync(f => f.Id == id);
         if (entity is null)
         {
             _logger.Warning("File {Id} doesn't exist", id);
-            return null;
+            return new Result<StoredFile>(new NotFoundException(id));
         }
 
         if (entity.MaxSize is not null && entity.MaxSize < entity.Size)
         {
             _logger.Warning("Size of file {Id} ({Name}) is bigger than desired max size ({Actual} > {Desired})", id,
                 entity.FileName, entity.Size, maxSize);
-            return null;
+            return new Result<StoredFile>(new InvalidOperationException(
+                $"Size of file {id} ({entity.FileName}) is bigger than desired max size ({entity.Size} > {maxSize})"));
         }
 
         entity.FileName = name;
@@ -171,6 +172,6 @@ public sealed class FileCommand
         entity.LastModificationTime = DateTimeOffset.Now;
         await _context.SaveChangesAsync();
 
-        return StoredFile.FromEntity(entity);
+        return new Result<StoredFile>(StoredFile.FromEntity(entity));
     }
 }

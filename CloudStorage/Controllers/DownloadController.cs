@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using CloudStorage.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CloudStorage.Controllers;
@@ -7,11 +8,13 @@ namespace CloudStorage.Controllers;
 [Route("download")]
 public sealed class DownloadController : ControllerBase
 {
-    private readonly FileCommand _command;
+    private readonly FileCommand _fileCommand;
+    private readonly AccessLinkCommand _linkCommand;
 
-    public DownloadController(FileCommand command)
+    public DownloadController(FileCommand fileCommand, AccessLinkCommand linkCommand)
     {
-        _command = command;
+        _fileCommand = fileCommand;
+        _linkCommand = linkCommand;
     }
 
     [HttpGet]
@@ -20,13 +23,19 @@ public sealed class DownloadController : ControllerBase
     public async Task<ActionResult<FileResult>> DownloadFile(Guid id)
     {
         var userId = Utility.GetUserId(User.Claims);
-        var details = await _command.GetDetailsByIdAsync(id);
-        if (details is null) return NotFound();
-        if (!details.IsAllowedForUser(userId)) return Unauthorized();
+        var linkDetails = await _linkCommand.GetLinkDetailsAsync(id, userId);
+        if (linkDetails.Exception is not null)
+            return linkDetails.Exception switch
+            {
+                NotFoundException => NotFound(),
+                UnauthorizedAccessException => Unauthorized(),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        if (!linkDetails.Value.Permissions.HasFlag(AccessType.Read)) return Unauthorized();
 
-        var content = await _command.GetContentByIdAsync(id);
-        if (content is null) return StatusCode(StatusCodes.Status500InternalServerError);
+        var content = await _fileCommand.GetContentByIdAsync(linkDetails.Value.File.Id);
+        if (content is null) return NotFound();
 
-        return File(content, "text/plain", details.FileName);
+        return File(content, "text/plain", linkDetails.Value.File.FileName);
     }
 }

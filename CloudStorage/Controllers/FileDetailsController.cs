@@ -65,8 +65,14 @@ public class FileDetailsController : ControllerBase
         if (request.MaxSize is not null && request.MaxSize < details.Size) return BadRequest();
 
         var newDetails = await _command.UpdateDetailsAsync(id, request.FileName, request.MaxSize, request.Replaceable);
-        if (newDetails is null) return StatusCode(StatusCodes.Status500InternalServerError);
+        if (newDetails.Exception is not null)
+            return newDetails.Exception switch
+            {
+                NotFoundException => NotFound(),
+                InvalidOperationException => BadRequest(),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
 
-        return newDetails.ToResponse();
+        return newDetails.Value.ToResponse();
     }
 }
