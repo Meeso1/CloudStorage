@@ -7,37 +7,55 @@ namespace CloudStorage.Controllers;
 [ApiController]
 public sealed class UploadController : ControllerBase
 {
-    private readonly FileCommand _command;
+    private readonly FileCommand _fileCommand;
+    private readonly AccessLinkCommand _linkCommand;
 
-    public UploadController(FileCommand command)
+    public UploadController(FileCommand fileCommand, AccessLinkCommand linkCommand)
     {
-        _command = command;
+        _fileCommand = fileCommand;
+        _linkCommand = linkCommand;
     }
 
     [HttpPost]
     [AllowAnonymous]
     [Route("create")]
-    public async Task<ActionResult<StoredFileResponse>> CreateFile(CreateFileRequest request)
+    public async Task<ActionResult<AccessLinkResponse>> CreateFile(CreateFileRequest request)
     {
         var userId = Utility.GetUserId(User.Claims);
 
         var created =
-            await _command.CreateStoredFileAsync(request.FileName, request.MaxSize, request.Replaceable, userId);
-        return created is null ? NotFound() : created.ToResponse();
+            await _fileCommand.CreateStoredFileAsync(request.FileName, request.MaxSize, request.Replaceable, userId);
+        if (created is null) return NotFound();
+
+        var link = await _linkCommand.CreateLink(created.Id, AccessLink.FullAccess(), userId, request.Password);
+        if (link.Exception is not null)
+            return link.Exception switch
+            {
+                NotFoundException => NotFound(),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+
+        return AccessLinkResponse.FromLink(link.Value);
     }
 
     [HttpPost]
     [AllowAnonymous]
     [Route("upload/{fileId:guid}")]
-    public async Task<ActionResult<StoredFileResponse>> UploadFile(Guid fileId, IFormFile file)
+    public async Task<ActionResult<AccessLinkResponse>> UploadFile(Guid fileId, IFormFile file)
     {
         var userId = Utility.GetUserId(User.Claims);
-        var fileDetails = await _command.GetDetailsByIdAsync(fileId);
-        if (fileDetails is null) return NotFound();
-        if (!fileDetails.IsAllowedForUser(userId)) return Unauthorized();
+        var linkDetails = await _linkCommand.GetLinkDetailsAsync(fileId, userId);
+        if (linkDetails.Exception is not null)
+            return linkDetails.Exception switch
+            {
+                NotFoundException => NotFound(),
+                UnauthorizedAccessException => Unauthorized(),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        if (!linkDetails.Value.Permissions.HasFlag(AccessType.Write)) return Unauthorized();
 
-        var newDetails = await _command.StoreContentAsync(fileId, file);
+        var newDetails = await _fileCommand.StoreContentAsync(fileId, file);
 
-        return newDetails is null ? BadRequest() : newDetails.ToResponse();
+        return newDetails is null ? BadRequest() : AccessLinkResponse.FromLink(linkDetails.Value);
     }
 }

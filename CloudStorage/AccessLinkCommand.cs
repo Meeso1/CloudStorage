@@ -27,9 +27,35 @@ public sealed class AccessLinkCommand
             return new Result<AccessLink>(new UnauthorizedAccessException());
 
         var hasher = new PasswordHasher<AccessLink>();
-        if (link.PasswordHash is not null && hasher.VerifyHashedPassword(link, link.PasswordHash, password) ==
+        if (entity.PasswordHash is not null && hasher.VerifyHashedPassword(link, entity.PasswordHash, password) ==
             PasswordVerificationResult.Failed)
             return new Result<AccessLink>(new UnauthorizedAccessException());
+
+        return new Result<AccessLink>(link);
+    }
+
+    public async Task<Result<AccessLink>> CreateLink(Guid fileId, AccessType access, Guid? ownerId = null,
+        string? password = null)
+    {
+        var file = await _context.Files.FirstOrDefaultAsync(f => f.Id == fileId);
+        if (file is null) return new Result<AccessLink>(new NotFoundException(fileId));
+
+        var owner = await _context.Users.FirstOrDefaultAsync(u => u.Id == ownerId);
+        if (owner is null && ownerId is not null) return new Result<AccessLink>(new NotFoundException(ownerId));
+
+        var link = new AccessLink
+        {
+            Id = Guid.NewGuid(),
+            Permissions = access,
+            File = StoredFile.FromEntity(file),
+            Owner = owner is null ? null : User.FromEntity(owner)
+        };
+
+        var hasher = new PasswordHasher<AccessLink>();
+        var hashedPassword = hasher.HashPassword(link, password);
+
+        _context.Links.Add(link.ToEntity(hashedPassword));
+        await _context.SaveChangesAsync();
 
         return new Result<AccessLink>(link);
     }

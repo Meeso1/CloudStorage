@@ -12,9 +12,7 @@ public sealed class AccessLink
 
     public User? Owner { get; init; }
 
-    public string? PasswordHash { get; set; }
-
-    public AccessLinkEntity ToEntity()
+    public AccessLinkEntity ToEntity(string? passwordHash = null)
     {
         return new()
         {
@@ -22,7 +20,7 @@ public sealed class AccessLink
             FileId = File.Id,
             OwnerId = Owner?.Id,
             Permissions = Permissions,
-            PasswordHash = PasswordHash
+            PasswordHash = passwordHash
         };
     }
 
@@ -33,9 +31,13 @@ public sealed class AccessLink
             Id = entity.Id,
             File = StoredFile.FromEntity(entity.File),
             Owner = entity.Owner is null ? null : User.FromEntity(entity.Owner),
-            Permissions = entity.Permissions,
-            PasswordHash = entity.PasswordHash
+            Permissions = entity.Permissions
         };
+    }
+
+    public static AccessType FullAccess()
+    {
+        return AccessType.Read | AccessType.Write | AccessType.Modify | AccessType.CreateLinks;
     }
 }
 
@@ -44,5 +46,6 @@ public enum AccessType
 {
     Read = 1,
     Write = 2,
-    Modify = 4
+    Modify = 4,
+    CreateLinks = 8
 }
