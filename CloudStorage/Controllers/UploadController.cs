@@ -58,4 +58,28 @@ public sealed class UploadController : ControllerBase
 
         return newDetails is null ? BadRequest() : AccessLinkResponse.FromLink(linkDetails.Value);
     }
+
+    /*
+     * TODO: [Links]
+     * 1. Return usernames not user Ids
+     * 2. Timeout and usage (separately download & upload) limit in links
+     * 3. A way to invalidate links
+     * 4. A way to create links for others by username
+     * 5. Return all links for user
+     * 6. Get link status
+     * 7. Clone link (make a link to a link)
+     * 8. Migration & manual tests
+     */
+
+    /*
+     * TODO: [Other]
+     * 1. Unit tests
+     * 2. XML doc
+     * 3. R# config
+     * 4. Encrypt stored files
+     * 5. Download/upload as stream
+     * 6. Set max storage size (in config)
+     * 7. Change password (get disposable link by mail -> require mail on register)
+     * 8. Remote files (with potentially different APIs -> links are actual links, not IDs)
+     */
 }
